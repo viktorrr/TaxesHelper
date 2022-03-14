@@ -16,13 +16,14 @@
 
     public static class Program
     {
-        private static HttpClient HttpClient = new HttpClient();
+        private static readonly HttpClient HttpClient = new();
 
         public static async Task Main(string[] args)
         {
             var rootCommand = new RootCommand();
             rootCommand.AddCommand(CreateSellsCommand());
             rootCommand.AddCommand(CreateHoldingsCommand());
+            rootCommand.AddCommand(CreateDividendCommand());
 
             await rootCommand.InvokeAsync(args);
         }
@@ -85,6 +86,53 @@ Useful if you're filling the application. If false (default), dumps the whole ou
                     await AnalyzeHoldings(file, interactive.HasValue && interactive.Value));
 
             return command;
+        }
+
+        private static Command CreateDividendCommand()
+        {
+            var dividendArgument = new Argument("dividend")
+            {
+                Arity = ArgumentArity.ExactlyOne,
+                Description = @"The un-taxed dividend that you received.
+Go to Etrade > Holdings > Other Holdings & expand the cash section and find the oldest entry."
+            };
+
+            var command = new Command("dividend", "This command generates the output for Application №8, Part IV.");
+            command.AddArgument(dividendArgument);
+
+            command.Handler = CommandHandler.Create(
+                async (decimal dividend) => await AnalyzeDividend(dividend));
+
+            return command;
+        }
+
+        private static async Task AnalyzeDividend(decimal dividendUsd)
+        {
+            var rate = await GetBnbRate(new DateTime(2021, 04, 11));
+
+            Console.WriteLine($"1 USD = {rate} лв.");
+            Console.WriteLine();
+
+            var dividendBgn = rate * dividendUsd;
+
+            var usdTaxesPayedInUs = dividendUsd * 0.1M * 0.3949M;
+            var bgnTaxesPayedInUs = rate * usdTaxesPayedInUs;
+
+            var taxCredit = dividendBgn * 0.05M;
+
+            var taxToPay = taxCredit - bgnTaxesPayedInUs;
+
+            Console.WriteLine($"Наименование на лицето, изплатило дохода: VMware, Inc.");
+            Console.WriteLine($"Държава: САЩ");
+            Console.WriteLine($"Код вид доход: 8141");
+            Console.WriteLine($"Код за прилагане на метод за избягване на двойното данъчно облагане: 1");
+            Console.WriteLine($"Брутен размер на дохода: {dividendBgn:.00}");
+            Console.WriteLine($"Документално доказана цена на придобиване: 0.00");
+            Console.WriteLine($"Положителна разлика между колона 6 и колона 7: 0.00");
+            Console.WriteLine($"Платен данък в чужбина: {bgnTaxesPayedInUs:.00}");
+            Console.WriteLine($"Допустим размер на данъчния кредит: {taxCredit:.00}");
+            Console.WriteLine($"Размер на признатия данъчен кредит: {taxCredit:.00}");
+            Console.WriteLine($"Дължим данък, подлежащ на внасяне: {taxToPay:.00}");
         }
 
         private static async Task AnalyzeHoldings(string file, bool interactive)
